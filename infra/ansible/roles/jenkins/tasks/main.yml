@@ -1,0 +1,48 @@
+---
+# tasks for installing Jenkins on Amazon Linux 2023
+
+- name: Update all packages
+  ansible.builtin.package:
+    name: "*"
+    state: latest
+
+- name: Install required dependencies
+  ansible.builtin.package:
+    name:
+      - java-17-amazon-corretto
+      - git
+      - wget
+    state: present
+
+- name: Add Jenkins repo file
+  ansible.builtin.get_url:
+    url: https://pkg.jenkins.io/redhat-stable/jenkins.repo
+    dest: /etc/yum.repos.d/jenkins.repo
+    mode: '0644'
+
+- name: Import Jenkins GPG key
+  ansible.builtin.rpm_key:
+    state: present
+    key: https://pkg.jenkins.io/redhat-stable/jenkins.io-2023.key
+
+- name: Install Jenkins
+  ansible.builtin.package:
+    name: jenkins
+    state: present
+  notify: restart jenkins
+
+- name: Enable and start Jenkins service
+  ansible.builtin.systemd:
+    name: jenkins
+    enabled: true
+    state: started
+
+- name: Verify Jenkins service status
+  ansible.builtin.command: systemctl status jenkins
+  register: jenkins_status
+  changed_when: false
+
+- name: Print Jenkins service status
+  ansible.builtin.debug:
+    msg: "{{ jenkins_status.stdout_lines }}"
+
