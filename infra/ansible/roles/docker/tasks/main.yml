@@ -1,0 +1,47 @@
+---
+- name: Update all packages
+  ansible.builtin.package:
+    name: "*"
+    state: latest
+
+- name: Install Docker and containerd
+  ansible.builtin.package:
+    name: "{{ docker_packages }}"
+    state: present
+
+- name: Enable and start Docker service
+  ansible.builtin.systemd:
+    name: docker
+    enabled: true
+    state: started
+
+- name: Add {{ docker_user }} to docker group
+  ansible.builtin.user:
+    name: "{{ docker_user }}"
+    groups: docker
+    append: yes
+
+- name: Download Docker Compose binary
+  ansible.builtin.get_url:
+    url: "https://github.com/docker/compose/releases/download/{{ docker_compose_version }}/docker-compose-linux-x86_64"
+    dest: "{{ docker_compose_dest }}"
+    mode: '0755'
+  register: compose_download
+  changed_when: compose_download.changed
+
+- name: Verify Docker installation
+  ansible.builtin.command: docker --version
+  register: docker_version
+  changed_when: false
+
+- name: Verify Docker Compose installation
+  ansible.builtin.command: "{{ docker_compose_dest }} --version"
+  register: compose_version
+  changed_when: false
+
+- name: Print installed versions
+  ansible.builtin.debug:
+    msg:
+      - "Docker version: {{ docker_version.stdout }}"
+      - "Docker Compose version: {{ compose_version.stdout }}"
+

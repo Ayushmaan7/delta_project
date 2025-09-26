@@ -1,0 +1,9 @@
+---
+- name: Setup DevOps tools on managed nodes
+  hosts: all
+  become: true
+  roles:
+    - docker
+    - jenkins
+
+
