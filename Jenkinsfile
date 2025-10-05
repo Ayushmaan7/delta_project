@@ -14,22 +14,47 @@ pipeline {
     stages {
         stage('Checkout Code') {
             steps {
-                checkout([
-                    $class: 'GitSCM',
-                    branches: [[name: '*/main']],
-                    doGenerateSubmoduleConfigurations: false,
-                    userRemoteConfigs: [[
-                        url: 'https://github.com/Ayushmaan7/delta_project.git',
-                        credentialsId: env.GIT_CREDENTIALS
-                    ]]
-                ])
+                script {
+                    checkout([
+                        $class: 'GitSCM',
+                        branches: [[name: '*/main']],
+                        doGenerateSubmoduleConfigurations: false,
+                        userRemoteConfigs: [[
+                            url: 'https://github.com/Ayushmaan7/delta_project.git',
+                            credentialsId: env.GIT_CREDENTIALS
+                        ]]
+                    ])
+                    
+                    // Get the list of changed files in this commit
+                    def changes = sh(
+                        script: "git diff --name-only HEAD~1 HEAD",
+                        returnStdout: true
+                    ).trim().split("\n")
+                    
+                    // Files that should block the pipeline
+                    def blockingFiles = ['Jenkinsfile', 'Dockerfile']
+                    def blockingDirs = ['infra/']
+
+                    // Check if any blocking file or directory changed
+                    for (file in changes) {
+                        for (bf in blockingFiles) {
+                            if (file == bf) {
+                                error "Pipeline skipped: Change detected in ${file}"
+                            }
+                        }
+                        for (dir in blockingDirs) {
+                            if (file.startsWith(dir)) {
+                                error "Pipeline skipped: Change detected in ${file}"
+                            }
+                        }
+                    }
+                }
             }
         }
 
         stage('Build Docker Image') {
             steps {
                 script {
-                    // Build with both latest and build number tags
                     def buildNumberTag = "${env.BUILD_NUMBER}"
                     docker.build("${env.IMAGE_NAME}:${buildNumberTag}")
                     docker.build("${env.IMAGE_NAME}:latest")
@@ -45,6 +70,12 @@ pipeline {
                         docker.image("${env.IMAGE_NAME}:${buildNumberTag}").push()
                         docker.image("${env.IMAGE_NAME}:latest").push()
                     }
+
+                    // Remove Docker images from Jenkins node
+                    sh """
+                        docker rmi -f ${env.IMAGE_NAME}:${env.BUILD_NUMBER} || true
+                        docker rmi -f ${env.IMAGE_NAME}:latest || true
+                    """
                 }
             }
         }
