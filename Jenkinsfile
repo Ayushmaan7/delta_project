@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        IMAGE_NAME = 'ayushmaan7/mini-airbnb'
+        IMAGE_NAME = 'yourdockerhubusername/yourapp'
         DOCKER_CREDENTIALS = 'dockerhub-creds'
         GIT_CREDENTIALS = 'github-creds'
     }
@@ -15,6 +15,7 @@ pipeline {
         stage('Checkout Code') {
             steps {
                 script {
+                    // Checkout code
                     checkout([
                         $class: 'GitSCM',
                         branches: [[name: '*/main']],
@@ -24,35 +25,45 @@ pipeline {
                             credentialsId: env.GIT_CREDENTIALS
                         ]]
                     ])
-                    
-                    // Get the list of changed files in this commit
+
+                    // Determine commits for diff
+                    def previousCommit = env.GIT_PREVIOUS_COMMIT ?: sh(script: 'git rev-parse HEAD~1', returnStdout: true).trim()
+                    def currentCommit = env.GIT_COMMIT ?: sh(script: 'git rev-parse HEAD', returnStdout: true).trim()
+
+                    // Get list of changed files
                     def changes = sh(
-                        script: "git diff --name-only HEAD~1 HEAD",
+                        script: "git diff --name-only ${previousCommit} ${currentCommit}",
                         returnStdout: true
                     ).trim().split("\n")
-                    
-                    // Files that should block the pipeline
+
+                    // Define blocking files/directories
                     def blockingFiles = ['Jenkinsfile', 'Dockerfile']
                     def blockingDirs = ['infra/']
 
-                    // Check if any blocking file or directory changed
+                    // Check for blocking changes
+                    boolean onlyBlockingChanges = true
                     for (file in changes) {
-                        for (bf in blockingFiles) {
-                            if (file == bf) {
-                                error "Pipeline skipped: Change detected in ${file}"
-                            }
+                        if (!blockingFiles.contains(file) && !blockingDirs.any { file.startsWith(it) }) {
+                            onlyBlockingChanges = false
+                            break
                         }
-                        for (dir in blockingDirs) {
-                            if (file.startsWith(dir)) {
-                                error "Pipeline skipped: Change detected in ${file}"
-                            }
-                        }
+                    }
+
+                    if (onlyBlockingChanges) {
+                        // Mark build as SUCCESS but skip remaining stages
+                        currentBuild.result = 'SUCCESS'
+                        echo "Pipeline skipped: Only Jenkinsfile, Dockerfile, or infra/ changes detected."
+                        // Exit early from pipeline stages
+                        return
                     }
                 }
             }
         }
 
         stage('Build Docker Image') {
+            when {
+                expression { currentBuild.result == null || currentBuild.result == 'SUCCESS' }
+            }
             steps {
                 script {
                     def buildNumberTag = "${env.BUILD_NUMBER}"
@@ -63,6 +74,9 @@ pipeline {
         }
 
         stage('Push Docker Image') {
+            when {
+                expression { currentBuild.result == null || currentBuild.result == 'SUCCESS' }
+            }
             steps {
                 script {
                     docker.withRegistry('https://index.docker.io/v1/', env.DOCKER_CREDENTIALS) {
@@ -71,7 +85,7 @@ pipeline {
                         docker.image("${env.IMAGE_NAME}:latest").push()
                     }
 
-                    // Remove Docker images from Jenkins node
+                    // Remove Docker images from Jenkins node to save disk space
                     sh """
                         docker rmi -f ${env.IMAGE_NAME}:${env.BUILD_NUMBER} || true
                         docker rmi -f ${env.IMAGE_NAME}:latest || true
@@ -83,11 +97,12 @@ pipeline {
 
     post {
         success {
-            echo "Pipeline completed successfully. Docker images pushed: latest and ${env.BUILD_NUMBER}"
+            echo "Pipeline completed successfully."
         }
         failure {
-            echo "Pipeline failed!"
+            echo "Pipeline failed due to an error!"
         }
     }
+}
 }
 
