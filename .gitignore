@@ -12,3 +12,12 @@ infra/terraform/.terraform.lock.hcl
 # Ansible
 infra/ansible/*.retry
 infra/ansible/*.vault_pass
+
+# Terraform provider binaries and lock
+infra/terraform/modules/**/.terraform/
+infra/terraform/modules/**/.terraform.lock.hcl
+
+# Ansible config & inventory
+infra/ansible/ansible.cfg
+infra/ansible/inventory/
+
