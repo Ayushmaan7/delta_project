@@ -2,48 +2,26 @@ pipeline {
     agent any
 
     environment {
-        IMAGE_NAME = 'yourdockerhubusername/yourapp'
+        IMAGE_NAME = 'ayushmaan7/mini-airbnb'
         DOCKER_CREDENTIALS = 'dockerhub-creds'
         GIT_CREDENTIALS = 'github-creds'
     }
 
     options {
-        skipDefaultCheckout() // We'll do manual checkout
-    }
-
-    triggers {
-        pollSCM('* * * * *') // Poll Git every minute, or configure webhook
+        skipDefaultCheckout()
     }
 
     stages {
-
         stage('Checkout Code') {
             steps {
-                // Checkout only if app files changed (not Dockerfile/infra)
-                script {
-                    def changes = changelog scm: [$class: 'GitSCM', branches: [[name: '*/main']], userRemoteConfigs: [[url: 'https://github.com/yourusername/yourrepo.git', credentialsId: env.GIT_CREDENTIALS]]]
-                    def runBuild = false
-                    for (change in changes) {
-                        if (!(change.path.startsWith("infra/") || change.path == "Dockerfile")) {
-                            runBuild = true
-                            break
-                        }
-                    }
-                    if (!runBuild) {
-                        echo "No relevant changes detected. Skipping build."
-                        currentBuild.result = 'NOT_BUILT'
-                        return
-                    }
-                }
-
-                checkout([$class: 'GitSCM',
-                          branches: [[name: '*/main']],
-                          doGenerateSubmoduleConfigurations: false,
-                          extensions: [],
-                          userRemoteConfigs: [[
-                              url: 'https://github.com/yourusername/yourrepo.git',
-                              credentialsId: env.GIT_CREDENTIALS
-                          ]]
+                checkout([
+                    $class: 'GitSCM',
+                    branches: [[name: '*/main']],
+                    doGenerateSubmoduleConfigurations: false,
+                    userRemoteConfigs: [[
+                        url: 'https://github.com/Ayushmaan7/delta_project.git',
+                        credentialsId: env.GIT_CREDENTIALS
+                    ]]
                 ])
             }
         }
@@ -51,6 +29,9 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
+                    // Build with both latest and build number tags
+                    def buildNumberTag = "${env.BUILD_NUMBER}"
+                    docker.build("${env.IMAGE_NAME}:${buildNumberTag}")
                     docker.build("${env.IMAGE_NAME}:latest")
                 }
             }
@@ -60,6 +41,8 @@ pipeline {
             steps {
                 script {
                     docker.withRegistry('https://index.docker.io/v1/', env.DOCKER_CREDENTIALS) {
+                        def buildNumberTag = "${env.BUILD_NUMBER}"
+                        docker.image("${env.IMAGE_NAME}:${buildNumberTag}").push()
                         docker.image("${env.IMAGE_NAME}:latest").push()
                     }
                 }
@@ -69,7 +52,7 @@ pipeline {
 
     post {
         success {
-            echo "Pipeline completed successfully. Docker image pushed as latest."
+            echo "Pipeline completed successfully. Docker images pushed: latest and ${env.BUILD_NUMBER}"
         }
         failure {
             echo "Pipeline failed!"
