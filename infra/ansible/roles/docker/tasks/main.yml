@@ -1,11 +1,46 @@
 ---
-- name: Update all packages
-  ansible.builtin.package:
-    name: "*"
-    state: latest
+# roles/docker/tasks/main.yml
 
-- name: Install Docker and containerd
-  ansible.builtin.package:
+- name: Update apt cache and upgrade packages
+  ansible.builtin.apt:
+    update_cache: yes
+    upgrade: yes
+
+- name: Install prerequisite packages
+  ansible.builtin.apt:
+    name:
+      - ca-certificates
+      - curl
+      - gnupg
+      - lsb-release
+    state: present
+
+- name: Create keyrings directory
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: '0755'
+
+- name: Add Docker’s official GPG key (safe + non-interactive)
+  shell: |
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor | sudo tee /etc/apt/keyrings/docker.gpg > /dev/null
+  args:
+    creates: /etc/apt/keyrings/docker.gpg
+  become: yes
+
+- name: Add Docker APT repository
+  ansible.builtin.copy:
+    dest: /etc/apt/sources.list.d/docker.list
+    content: |
+      deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable
+    mode: '0644'
+
+- name: Update apt cache after adding Docker repo
+  ansible.builtin.apt:
+    update_cache: yes
+
+- name: Install Docker Engine, CLI, containerd, and Compose plugin
+  ansible.builtin.apt:
     name: "{{ docker_packages }}"
     state: present
 
@@ -21,21 +56,13 @@
     groups: docker
     append: yes
 
-- name: Download Docker Compose binary
-  ansible.builtin.get_url:
-    url: "https://github.com/docker/compose/releases/download/{{ docker_compose_version }}/docker-compose-linux-x86_64"
-    dest: "{{ docker_compose_dest }}"
-    mode: '0755'
-  register: compose_download
-  changed_when: compose_download.changed
-
 - name: Verify Docker installation
   ansible.builtin.command: docker --version
   register: docker_version
   changed_when: false
 
 - name: Verify Docker Compose installation
-  ansible.builtin.command: "{{ docker_compose_dest }} --version"
+  ansible.builtin.command: docker compose version
   register: compose_version
   changed_when: false
 

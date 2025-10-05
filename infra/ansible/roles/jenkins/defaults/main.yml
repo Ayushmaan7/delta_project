@@ -1,5 +1,6 @@
 ---
-# default variables for Jenkins role
-jenkins_repo_url: https://pkg.jenkins.io/redhat-stable/jenkins.repo
-jenkins_gpg_key: https://pkg.jenkins.io/redhat-stable/jenkins.io-2023.key
+jenkins_repo_url: "https://pkg.jenkins.io/debian"
+jenkins_gpg_key_url: "https://pkg.jenkins.io/debian/jenkins.io-2023.key"
+jenkins_package: "jenkins"
+java_package: "openjdk-17-jdk"
 
