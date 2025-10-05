@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        IMAGE_NAME = 'yourdockerhubusername/yourapp'
+        IMAGE_NAME = 'ayushmaan7/mini-airbnb'
         DOCKER_CREDENTIALS = 'dockerhub-creds'
         GIT_CREDENTIALS = 'github-creds'
     }
@@ -15,7 +15,9 @@ pipeline {
         stage('Checkout Code') {
             steps {
                 script {
-                    // Checkout code
+                    // Flag to control skipping
+                    env.SHOULD_SKIP = "false"
+
                     checkout([
                         $class: 'GitSCM',
                         branches: [[name: '*/main']],
@@ -30,17 +32,15 @@ pipeline {
                     def previousCommit = env.GIT_PREVIOUS_COMMIT ?: sh(script: 'git rev-parse HEAD~1', returnStdout: true).trim()
                     def currentCommit = env.GIT_COMMIT ?: sh(script: 'git rev-parse HEAD', returnStdout: true).trim()
 
-                    // Get list of changed files
+                    // Get changed files
                     def changes = sh(
                         script: "git diff --name-only ${previousCommit} ${currentCommit}",
                         returnStdout: true
                     ).trim().split("\n")
 
-                    // Define blocking files/directories
                     def blockingFiles = ['Jenkinsfile', 'Dockerfile']
                     def blockingDirs = ['infra/']
 
-                    // Check for blocking changes
                     boolean onlyBlockingChanges = true
                     for (file in changes) {
                         if (!blockingFiles.contains(file) && !blockingDirs.any { file.startsWith(it) }) {
@@ -50,11 +50,8 @@ pipeline {
                     }
 
                     if (onlyBlockingChanges) {
-                        // Mark build as SUCCESS but skip remaining stages
-                        currentBuild.result = 'SUCCESS'
+                        env.SHOULD_SKIP = "true"
                         echo "Pipeline skipped: Only Jenkinsfile, Dockerfile, or infra/ changes detected."
-                        // Exit early from pipeline stages
-                        return
                     }
                 }
             }
@@ -62,7 +59,7 @@ pipeline {
 
         stage('Build Docker Image') {
             when {
-                expression { currentBuild.result == null || currentBuild.result == 'SUCCESS' }
+                expression { env.SHOULD_SKIP != "true" }
             }
             steps {
                 script {
@@ -75,7 +72,7 @@ pipeline {
 
         stage('Push Docker Image') {
             when {
-                expression { currentBuild.result == null || currentBuild.result == 'SUCCESS' }
+                expression { env.SHOULD_SKIP != "true" }
             }
             steps {
                 script {
@@ -85,7 +82,7 @@ pipeline {
                         docker.image("${env.IMAGE_NAME}:latest").push()
                     }
 
-                    // Remove Docker images from Jenkins node to save disk space
+                    // Cleanup local images
                     sh """
                         docker rmi -f ${env.IMAGE_NAME}:${env.BUILD_NUMBER} || true
                         docker rmi -f ${env.IMAGE_NAME}:latest || true
