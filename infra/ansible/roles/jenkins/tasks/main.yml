@@ -1,35 +1,41 @@
 ---
-# tasks for installing Jenkins on Amazon Linux 2023
+# Install Jenkins on Ubuntu 24.04 (Noble)
 
-- name: Update all packages
-  ansible.builtin.package:
-    name: "*"
-    state: latest
+- name: Update apt cache
+  ansible.builtin.apt:
+    update_cache: yes
 
-- name: Install required dependencies
-  ansible.builtin.package:
-    name:
-      - java-17-amazon-corretto
-      - git
-      - wget
+- name: Install Java (required for Jenkins)
+  ansible.builtin.apt:
+    name: openjdk-17-jdk
     state: present
 
-- name: Add Jenkins repo file
+- name: Ensure keyrings directory exists
+  ansible.builtin.file:
+    path: /usr/share/keyrings
+    state: directory
+    mode: '0755'
+
+- name: Download Jenkins GPG key to keyring
   ansible.builtin.get_url:
-    url: https://pkg.jenkins.io/redhat-stable/jenkins.repo
-    dest: /etc/yum.repos.d/jenkins.repo
+    url: https://pkg.jenkins.io/debian/jenkins.io-2023.key
+    dest: /usr/share/keyrings/jenkins-keyring.asc
     mode: '0644'
 
-- name: Import Jenkins GPG key
-  ansible.builtin.rpm_key:
+- name: Add Jenkins apt repository
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] https://pkg.jenkins.io/debian binary/"
     state: present
-    key: https://pkg.jenkins.io/redhat-stable/jenkins.io-2023.key
+    filename: jenkins
+
+- name: Update apt cache after adding Jenkins repo
+  ansible.builtin.apt:
+    update_cache: yes
 
 - name: Install Jenkins
-  ansible.builtin.package:
+  ansible.builtin.apt:
     name: jenkins
     state: present
-  notify: restart jenkins
 
 - name: Enable and start Jenkins service
   ansible.builtin.systemd:
@@ -37,12 +43,13 @@
     enabled: true
     state: started
 
-- name: Verify Jenkins service status
-  ansible.builtin.command: systemctl status jenkins
+- name: Check Jenkins service status
+  ansible.builtin.systemd:
+    name: jenkins
   register: jenkins_status
   changed_when: false
 
-- name: Print Jenkins service status
+- name: Print Jenkins service state
   ansible.builtin.debug:
-    msg: "{{ jenkins_status.stdout_lines }}"
+    msg: "Jenkins is {{ jenkins_status.status.ActiveState }}"
 
