@@ -1,0 +1,19 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: mini-airbnb
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: 'https://github.com/Ayushmaan7/delta_project'
+    targetRevision: HEAD
+    path: deployment/helm-chart   # Path to your Helm chart
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: default
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+
