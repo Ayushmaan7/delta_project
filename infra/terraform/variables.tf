@@ -18,3 +18,10 @@ variable "instance_type" {
   default     = "t2.micro"
 }
 
+variable "region" {}
+variable "cluster_name" {}
+variable "node_instance_type" { default = "t3.micro" }
+variable "desired_size" { default = 1 }
+variable "max_size" { default = 2 }
+variable "min_size" { default = 1 }
+

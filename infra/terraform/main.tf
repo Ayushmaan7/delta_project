@@ -39,3 +39,16 @@ module "ec2" {
   security_group_Id = module.security_groups.WordPressSG
   instance_type = var.instance_type
 }
+module "eks" {
+  source              = "./modules/eks"
+  cluster_name        = var.cluster_name
+  vpc_id              = module.vpc.vpc_id
+  private_subnet_ids  = module.subnets.private_subnets
+  public_subnet_ids   = module.subnets.public_subnets
+  node_instance_type  = var.node_instance_type
+  desired_size        = var.desired_size
+  max_size            = var.max_size
+  min_size            = var.min_size
+  region              = var.region
+}
+
