@@ -10,11 +10,10 @@ pipeline {
 
     options {
         skipDefaultCheckout()
-        // You can add timestamps(), buildDiscarder(...) etc.
+        // timestamps(), buildDiscarder(...) can be added here
     }
 
     stages {
-
         stage('Checkout Code') {
             steps {
                 script {
@@ -104,14 +103,18 @@ pipeline {
                         echo "=== Updating image tag in Helm values.yaml ==="
                         sed -i "s|image: ayushmaan7/mini-airbnb:.*|image: ayushmaan7/mini-airbnb:${BUILD_NUMBER}|g" deployment/helm-chart/values.yaml
 
-                        echo "=== Commit and push changes ==="
+                        echo "=== Commit and push changes if any ==="
                         git config user.email "jenkins@ci.com"
                         git config user.name "Jenkins CI"
                         git add deployment/helm-chart/values.yaml
-                        git commit -m "Update image tag to ${BUILD_NUMBER}"
-                        git push https://$GIT_USER:$GIT_PASS@github.com/Ayushmaan7/delta_project.git main
-
-                        echo "✅ Manifest updated successfully."
+                        
+                        if ! git diff --cached --quiet; then
+                            git commit -m "Update image tag to ${BUILD_NUMBER}"
+                            git push https://$GIT_USER:$GIT_PASS@github.com/Ayushmaan7/delta_project.git main
+                            echo "✅ Manifest updated successfully."
+                        else
+                            echo "No changes detected, skipping commit."
+                        fi
                         '''
                     }
                 }
