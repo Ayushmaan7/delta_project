@@ -89,45 +89,37 @@ pipeline {
 
         // --- NEW STAGE: update the helm chart in Git that ArgoCD watches ---
         stage('Update Manifests Repo') {
-            when { expression { env.SHOULD_SKIP != "true" } }
-            steps {
-                script {
-                    // Use the stored Git credentials to push the manifest change
-                    withCredentials([usernamePassword(credentialsId: env.GIT_CREDENTIALS, usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PASS')]) {
-                        sh """
-                            set -euo pipefail
-                            echo "Configuring push remote with credentials (masked)..."
-                            git remote set-url origin https://${GIT_USER}:${GIT_PASS}@github.com/Ayushmaan7/delta_project.git
-                            git fetch origin
-                            git checkout main
+    when {
+        expression { env.SHOULD_SKIP != "true" }
+    }
+    steps {
+        script {
+            withCredentials([usernamePassword(credentialsId: env.GIT_CREDENTIALS, usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PASS')]) {
+                sh '''#!/bin/bash
+                set -e
 
-                            # Prefer yq if available (safe YAML edit). Fallback to awk-based edit.
-                            if command -v yq >/dev/null 2>&1; then
-                                echo "Using yq to update ${MANIFESTS_PATH}/values.yaml"
-                                # yq v4 syntax; this will set image.tag to the build number
-                                yq eval --inplace '.image.tag = strenv(BUILD_NUMBER)' ${MANIFESTS_PATH}/values.yaml
-                            else
-                                echo "yq not found — using awk fallback to update ${MANIFESTS_PATH}/values.yaml"
-                                awk -v TAG="${BUILD_NUMBER}" 'BEGIN{in_image=0} /^image:/{print; in_image=1; next} in_image && /^\\s*repository:/{print; next} in_image && /^\\s*tag:/{print "  tag: " TAG; in_image=0; next} {print}' ${MANIFESTS_PATH}/values.yaml > ${MANIFESTS_PATH}/values.yaml.tmp
-                                mv ${MANIFESTS_PATH}/values.yaml.tmp ${MANIFESTS_PATH}/values.yaml
-                            fi
+                echo "=== Cloning repo to update manifest ==="
+                rm -rf delta_project || true
+                git clone https://$GIT_USER:$GIT_PASS@github.com/Ayushmaan7/delta_project.git
+                cd delta_project
 
-                            # show diff for logs (masked)
-                            git --no-pager diff -- ${MANIFESTS_PATH}/values.yaml || true
+                echo "=== Updating image tag in Helm values.yaml ==="
+                sed -i "s|image: ayushmaan7/mini-airbnb:.*|image: ayushmaan7/mini-airbnb:${BUILD_NUMBER}|g" deployment/helmchart/values.yaml
 
-                            git add ${MANIFESTS_PATH}/values.yaml
-                            git config user.email "jenkins@ci.example"
-                            git config user.name "Jenkins CI"
-                            git commit -m "ci: bump image to ${env.BUILD_NUMBER} [ci skip]" || echo "No changes to commit"
-                            git push origin HEAD:main
-                        """
-                    }
-                }
+                echo "=== Commit and push changes ==="
+                git config user.email "jenkins@ci.com"
+                git config user.name "Jenkins CI"
+                git add deployment/helmchart/values.yaml
+                git commit -m "Update image tag to ${BUILD_NUMBER}"
+                git push https://$GIT_USER:$GIT_PASS@github.com/Ayushmaan7/delta_project.git main
+
+                echo "✅ Manifest updated successfully."
+                '''
             }
         }
-
-        // (optional) you could add a 'Notify ArgoCD' stage here if you use API-trigger instead of relying on Git event
     }
+}
+
 
     post {
         success {
