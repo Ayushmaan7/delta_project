@@ -5,7 +5,7 @@ pipeline {
         IMAGE_NAME = 'ayushmaan7/mini-airbnb'
         DOCKER_CREDENTIALS = 'dockerhub-creds'
         GIT_CREDENTIALS = 'github-creds'   // must be username+token or username+password
-        MANIFESTS_PATH = 'deployment/helmchart' // path to helm chart that ArgoCD watches
+        MANIFESTS_PATH = 'deployment/helm-chart' // path to helm chart that ArgoCD watches
     }
 
     options {
@@ -102,12 +102,12 @@ pipeline {
                         cd delta_project
 
                         echo "=== Updating image tag in Helm values.yaml ==="
-                        sed -i "s|image: ayushmaan7/mini-airbnb:.*|image: ayushmaan7/mini-airbnb:${BUILD_NUMBER}|g" deployment/helmchart/values.yaml
+                        sed -i "s|image: ayushmaan7/mini-airbnb:.*|image: ayushmaan7/mini-airbnb:${BUILD_NUMBER}|g" deployment/helm-chart/values.yaml
 
                         echo "=== Commit and push changes ==="
                         git config user.email "jenkins@ci.com"
                         git config user.name "Jenkins CI"
-                        git add deployment/helmchart/values.yaml
+                        git add deployment/helm-chart/values.yaml
                         git commit -m "Update image tag to ${BUILD_NUMBER}"
                         git push https://$GIT_USER:$GIT_PASS@github.com/Ayushmaan7/delta_project.git main
 
