@@ -10,10 +10,11 @@ pipeline {
 
     options {
         skipDefaultCheckout()
-        // you can add timestamps(), buildDiscarder(...) etc.
+        // You can add timestamps(), buildDiscarder(...) etc.
     }
 
     stages {
+
         stage('Checkout Code') {
             steps {
                 script {
@@ -87,39 +88,36 @@ pipeline {
             }
         }
 
-        // --- NEW STAGE: update the helm chart in Git that ArgoCD watches ---
         stage('Update Manifests Repo') {
-    when {
-        expression { env.SHOULD_SKIP != "true" }
-    }
-    steps {
-        script {
-            withCredentials([usernamePassword(credentialsId: env.GIT_CREDENTIALS, usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PASS')]) {
-                sh '''#!/bin/bash
-                set -e
+            when { expression { env.SHOULD_SKIP != "true" } }
+            steps {
+                script {
+                    withCredentials([usernamePassword(credentialsId: env.GIT_CREDENTIALS, usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PASS')]) {
+                        sh '''#!/bin/bash
+                        set -e
 
-                echo "=== Cloning repo to update manifest ==="
-                rm -rf delta_project || true
-                git clone https://$GIT_USER:$GIT_PASS@github.com/Ayushmaan7/delta_project.git
-                cd delta_project
+                        echo "=== Cloning repo to update manifest ==="
+                        rm -rf delta_project || true
+                        git clone https://$GIT_USER:$GIT_PASS@github.com/Ayushmaan7/delta_project.git
+                        cd delta_project
 
-                echo "=== Updating image tag in Helm values.yaml ==="
-                sed -i "s|image: ayushmaan7/mini-airbnb:.*|image: ayushmaan7/mini-airbnb:${BUILD_NUMBER}|g" deployment/helmchart/values.yaml
+                        echo "=== Updating image tag in Helm values.yaml ==="
+                        sed -i "s|image: ayushmaan7/mini-airbnb:.*|image: ayushmaan7/mini-airbnb:${BUILD_NUMBER}|g" deployment/helmchart/values.yaml
 
-                echo "=== Commit and push changes ==="
-                git config user.email "jenkins@ci.com"
-                git config user.name "Jenkins CI"
-                git add deployment/helmchart/values.yaml
-                git commit -m "Update image tag to ${BUILD_NUMBER}"
-                git push https://$GIT_USER:$GIT_PASS@github.com/Ayushmaan7/delta_project.git main
+                        echo "=== Commit and push changes ==="
+                        git config user.email "jenkins@ci.com"
+                        git config user.name "Jenkins CI"
+                        git add deployment/helmchart/values.yaml
+                        git commit -m "Update image tag to ${BUILD_NUMBER}"
+                        git push https://$GIT_USER:$GIT_PASS@github.com/Ayushmaan7/delta_project.git main
 
-                echo "✅ Manifest updated successfully."
-                '''
+                        echo "✅ Manifest updated successfully."
+                        '''
+                    }
+                }
             }
         }
     }
-}
-
 
     post {
         success {
