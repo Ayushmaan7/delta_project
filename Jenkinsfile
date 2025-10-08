@@ -39,7 +39,7 @@ pipeline {
                     ).trim().split("\n")
 
                     def blockingFiles = ['Jenkinsfile', 'Dockerfile']
-                    def blockingDirs = ['infra/']
+                    def blockingDirs = ['infra/', 'deployment/']
 
                     boolean onlyBlockingChanges = true
                     for (file in changes) {
@@ -51,7 +51,7 @@ pipeline {
 
                     if (onlyBlockingChanges) {
                         env.SHOULD_SKIP = "true"
-                        echo "Pipeline skipped: Only Jenkinsfile, Dockerfile, or infra/ changes detected."
+                        echo "Pipeline skipped: Only Jenkinsfile, Dockerfile,deployment/ or infra/ changes detected."
                     }
                 }
             }
