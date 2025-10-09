@@ -1,5 +1,6 @@
 .env
 node_modules/
+istio-1.23.0/
 
 # Terraform
 infra/terraform/.terraform/
