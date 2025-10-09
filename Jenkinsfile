@@ -4,13 +4,12 @@ pipeline {
     environment {
         IMAGE_NAME = 'ayushmaan7/mini-airbnb'
         DOCKER_CREDENTIALS = 'dockerhub-creds'
-        GIT_CREDENTIALS = 'github-creds'   // must be username+token or username+password
-        MANIFESTS_PATH = 'deployment/helm-chart' // path to helm chart that ArgoCD watches
+        GIT_CREDENTIALS = 'github-creds'
+        MANIFESTS_PATH = 'deployment/helm-chart' // path ArgoCD watches
     }
 
     options {
         skipDefaultCheckout()
-        // timestamps(), buildDiscarder(...) can be added here
     }
 
     stages {
@@ -29,10 +28,9 @@ pipeline {
                         ]]
                     ])
 
-                    // Determine commits for diff
+                    // Detect changed files
                     def previousCommit = env.GIT_PREVIOUS_COMMIT ?: sh(script: 'git rev-parse HEAD~1', returnStdout: true).trim()
                     def currentCommit = env.GIT_COMMIT ?: sh(script: 'git rev-parse HEAD', returnStdout: true).trim()
-
                     def changesRaw = sh(script: "git diff --name-only ${previousCommit} ${currentCommit} || true", returnStdout: true).trim()
                     def changes = changesRaw ? changesRaw.split('\\n') : []
 
@@ -78,7 +76,7 @@ pipeline {
                         docker.image("${env.IMAGE_NAME}:latest").push()
                     }
 
-                    // Cleanup local images (best-effort)
+                    // Cleanup local images
                     sh """
                         docker rmi -f ${env.IMAGE_NAME}:${env.BUILD_NUMBER} || true
                         docker rmi -f ${env.IMAGE_NAME}:latest || true
@@ -101,20 +99,23 @@ pipeline {
                         cd delta_project
 
                         echo "=== Updating image tag in Helm values.yaml ==="
-                        sed -i "s|image: ayushmaan7/mini-airbnb:.*|image: ayushmaan7/mini-airbnb:${BUILD_NUMBER}|g" deployment/helm-chart/values.yaml
+                        sed -i "s|tag:.*|tag: \\"${BUILD_NUMBER}\\"|g" deployment/helm-chart/values.yaml
 
-                        echo "=== Commit and push changes if any ==="
+                        echo "=== Commit and push changes ==="
                         git config user.email "jenkins@ci.com"
                         git config user.name "Jenkins CI"
                         git add deployment/helm-chart/values.yaml
-                        
+
                         if ! git diff --cached --quiet; then
                             git commit -m "Update image tag to ${BUILD_NUMBER}"
-                            git push https://$GIT_USER:$GIT_PASS@github.com/Ayushmaan7/delta_project.git main
-                            echo "✅ Manifest updated successfully."
                         else
-                            echo "No changes detected, skipping commit."
+                            echo "Forcing ArgoCD redeploy by appending a dummy comment"
+                            echo "# redeploy-${BUILD_NUMBER}" >> deployment/helm-chart/values.yaml
+                            git add deployment/helm-chart/values.yaml
+                            git commit -m "Force redeploy for build ${BUILD_NUMBER}"
                         fi
+
+                        git push https://$GIT_USER:$GIT_PASS@github.com/Ayushmaan7/delta_project.git main
                         '''
                     }
                 }
@@ -124,10 +125,10 @@ pipeline {
 
     post {
         success {
-            echo "Pipeline finished successfully."
+            echo "✅ Pipeline finished successfully."
         }
         failure {
-            echo "Pipeline failed — check console output."
+            echo "❌ Pipeline failed — check console output."
         }
     }
 }
