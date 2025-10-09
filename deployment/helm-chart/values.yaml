@@ -2,7 +2,7 @@ replicaCount: 1
 
 image:
   repository: ayushmaan7/mini-airbnb
-  tag: "25"
+  tag: "27"
   pullPolicy: IfNotPresent
 
 service:
